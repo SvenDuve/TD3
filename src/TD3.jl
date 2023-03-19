@@ -34,8 +34,9 @@ end
     # Buffer size
     buffer_size::Int =                      1000000
     # Exploration
-    expl_noise::Float32 =                   0.2f0
-    noise_clip::Float32 =                   1.f0
+    expl_noise::Float32 =                   0.1f0
+    target_noise::Float32 =                 0.2f0
+    noise_clip::Float32 =                   0.5f0
     # Training Metrics
     training_episodes::Int =                300
     maximum_episode_length::Int =           1000
@@ -162,11 +163,12 @@ function train_step!(S, A, R, S´, T, μθ, μθ´, Qϕ1, Qϕ1´, Qϕ2, Qϕ2´, 
 
 
     # Add target action noise to the target action
-    target_action_noise = clamp.(rand(Normal{Float32}(0.f0, hp.expl_noise), size(A)), -hp.noise_clip, hp.noise_clip)
+    target_action_noise = clamp.(rand(Normal{Float32}(0.f0, hp.target_noise), size(A)), -hp.noise_clip, hp.noise_clip)
     target_action = μθ´(S) .+ target_action_noise
     
     # Clip target action
     target_action = clamp.(target_action, ep.action_bound_low, ep.action_bound_high)
+
 
     Y = R' .+ hp.γ * (1 .- T)' .* min.(Qϕ1´(vcat(S´, target_action)), Qϕ2´(vcat(S´, target_action)))
     # Y = R' .+ hp.γ * (1 .- T)' .* min.(Qϕ1´(vcat(S´, μθ´(S))), Qϕ2´(vcat(S´, μθ´(S))))
@@ -289,7 +291,7 @@ function agent(environment, hyperParams::HyperParameter)
 end
 
 
-
+# # hp = agent(DDPG(), "BipedalWalker-v3", HyperParameter(training_episodes=1000, maximum_episode_length=4000, train_start=20, batch_size=100, critic_η=0.0001, actor_η=0.0001))
 
 greet() = print("Hello World!")
 
