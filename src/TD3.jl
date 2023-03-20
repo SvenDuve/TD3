@@ -198,6 +198,8 @@ function train_step!(S, A, R, S´, T, μθ, μθ´, Qϕ1, Qϕ1´, Qϕ2, Qϕ2´, 
         soft_update!(μθ´, μθ, 0.005)
     end
     
+    # push!(hyperParams.critic_loss, Flux.Losses.mse(Qϕ1(vcat(S, A)), Y))
+    # push!(hyperParams.actor_loss, -mean(Qϕ1(vcat(S, μθ(S)))))
     
     #verify_update(Qϕ´, Qϕ)
     
@@ -284,8 +286,7 @@ function agent(environment, hyperParams::HyperParameter)
         end
         
 
-        push!(hyperParams.critic_loss, Flux.Losses.mse(Qϕ1(vcat(S, A)), Y))
-        push!(hyperParams.actor_loss, -mean(Qϕ1(vcat(S, μθ(S)))))
+
         push!(hyperParams.episode_steps, frames)
         push!(hyperParams.episode_reward, episode_rewards)
         
