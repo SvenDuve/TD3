@@ -282,7 +282,7 @@ function agent(environment, hyperParams::HyperParameter)
         
 
         if episode % hyperParams.store_frequency == 0
-            push!(hyperParams.trained_agents, μθ)
+            push!(hyperParams.trained_agents, deepcopy(μθ))
         end
         
 
@@ -298,6 +298,9 @@ function agent(environment, hyperParams::HyperParameter)
     
 end
 
+# Works
+# hp = agent("Pendulum-v1", HyperParameter(expl_noise=0.2f0, training_episodes=300, maximum_episode_length=4000, train_start=20, batch_size=128, critic_η=0.001, actor_η=0.001))
+# hp = agent("LunarLander-v2", HyperParameter(expl_noise=0.2f0, training_episodes=1000, maximum_episode_length=4000, train_start=20, batch_size=128, critic_η=0.0001, actor_η=0.0001))
 
 # # hp = agent("BipedalWalker-v3", HyperParameter(expl_noise=0.2f0, training_episodes=1000, maximum_episode_length=4000, train_start=20, batch_size=128, critic_η=0.0001, actor_η=0.0001))
 
@@ -312,25 +315,26 @@ function renderEnv(environment, policy, seed=42)
     end
 
     s, info = env.reset(seed=seed)
-    @show s
+
     R = []
     notSolved = true
 
-        while notSolved
-            
-            a = action(policy, s, false, EnvParameter(), HyperParameter()) #action(t::Clamped, m::Bool, s::Vector{Float32}, p::Parameter)
-            # a = NODERL.action(Randomized(), false, s, p) #action(t::Clamped, m::Bool, s::Vector{Float32}, p::Parameter)
+    while notSolved
+        
+        a = action(policy, s, false, EnvParameter(), HyperParameter()) 
 
-            s´, r, terminated, truncated, _ = env.step(a)
+        s´, r, terminated, truncated, _ = env.step(a)
 
-            terminated | truncated ? t = true : t = false
+        terminated | truncated ? t = true : t = false
 
-            append!(R, r)
+        append!(R, r)
 
-            sleep(0.05)
-            s = s´
-            notSolved = !t
-        end
+        sleep(0.05)
+        s = s´
+        notSolved = !t
+    end
+    
+    println("The agent has achieved return $(sum(R))")
 
     env.close()
 
