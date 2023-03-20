@@ -13,7 +13,9 @@ using MLUtils
 
 
 
-export agent, HyperParameter
+export agent, 
+        HyperParameter,
+        renderEnv
 
 
 
@@ -184,33 +186,37 @@ function train_step!(S, A, R, S´, T, μθ, μθ´, Qϕ1, Qϕ1´, Qϕ2, Qϕ2´, 
     Flux.update!(opt_critic2, Qϕ2, dϕ2[1])
 
     
-    push!(hp.critic_loss, Flux.Losses.mse(Qϕ1(vcat(S, A)), Y))
     
     if step % hp.policy_delay == 0
         #actor
         dθ = Flux.gradient(m -> -mean(Qϕ1(vcat(S, m(S)))), μθ)
         Flux.update!(opt_actor, μθ, dθ[1])
-
+        
         # Soft update target networks
         soft_update!(Qϕ1´, Qϕ1, 0.005)
         soft_update!(Qϕ2´, Qϕ2, 0.005)
         soft_update!(μθ´, μθ, 0.005)
     end
     
-    push!(hp.actor_loss, -mean(Qϕ1(vcat(S, μθ(S)))))
-
+    
     #verify_update(Qϕ´, Qϕ)
-
+    
 end
 
 
 function agent(environment, hyperParams::HyperParameter)
     println("Hello people I am here")
-
+    
     gym = pyimport("gym")
-    env = gym.make(environment)
+    
+    if environment == "LunarLander-v2"
+        global env = gym.make(environment, continuous=true)
+    else
+        global env = gym.make(environment)
+    end
+    
     envParams = EnvParameter()
-
+    
     # Reset Parameters
     ## ActionenvP
     envParams.action_size =        env.action_space.shape[1]
@@ -221,49 +227,46 @@ function agent(environment, hyperParams::HyperParameter)
     envParams.state_size =         env.observation_space.shape[1]
     envParams.state_bound_high =   env.observation_space.high
     envParams.state_bound_low =    env.observation_space.low
-
-
+    
+    
     episode = 1
-
+    
     μθ = setActor(envParams.state_size, envParams.action_size)
     μθ´= deepcopy(μθ)
     Qϕ1, Qϕ2 = setCritic(envParams.state_size, envParams.action_size)
     Qϕ1´, Qϕ2´ = deepcopy(Qϕ1), deepcopy(Qϕ2)
-
+    
     global opt_critic1 = Flux.setup(Flux.Optimise.Adam(hyperParams.critic_η), Qϕ1)
     global opt_critic2 = Flux.setup(Flux.Optimise.Adam(hyperParams.critic_η), Qϕ2)
     global opt_actor = Flux.setup(Flux.Optimise.Adam(hyperParams.actor_η), μθ)
     
     buffer = ReplayBuffer(hyperParams.buffer_size)
-
+    
     while episode ≤ hyperParams.training_episodes
-
+        
         frames = 0
-        s = env.reset()[1]
+        s, info = env.reset()
         episode_rewards = 0
         t = false
         
         for step in 1:hyperParams.maximum_episode_length
             
             a = action(μθ, s, true, envParams, hyperParams)
-            s´, r, t, _ = env.step(a)
-
+            s´, r, terminated, truncated, _ = env.step(a)
+            
+            terminated | truncated ? t = true : t = false
+            
             episode_rewards += r
             
             remember(buffer, s, a, r, s´, t)
-
+            
             if episode > hyperParams.train_start
-
+                
                 S, A, R, S´, T = sample(buffer, hyperParams.batch_size)
                 train_step!(S, A, R, S´, T, μθ, μθ´, Qϕ1, Qϕ1´, Qϕ2, Qϕ2´, envParams, hyperParams, step)
                 
             end
-
-            # if episode % 30 == 0
-            #     println("I am here")
-            #     env.render()
-            #     sleep(0.01)
-            # end
+            
             
             s = s´
             frames += 1
@@ -274,14 +277,18 @@ function agent(environment, hyperParams::HyperParameter)
             end
             
         end
+        
 
         if episode % hyperParams.store_frequency == 0
             push!(hyperParams.trained_agents, μθ)
         end
+        
 
+        push!(hyperParams.critic_loss, Flux.Losses.mse(Qϕ1(vcat(S, A)), Y))
+        push!(hyperParams.actor_loss, -mean(Qϕ1(vcat(S, μθ(S)))))
         push!(hyperParams.episode_steps, frames)
         push!(hyperParams.episode_reward, episode_rewards)
-
+        
         println("Episode: $episode | Cumulative Reward: $(round(episode_rewards, digits=2)) | Critic Loss: $(hyperParams.critic_loss[end]) | Actor Loss: $(hyperParams.actor_loss[end]) | Steps: $(frames)")
         episode += 1
     end
@@ -291,8 +298,41 @@ function agent(environment, hyperParams::HyperParameter)
 end
 
 
-# # hp = agent(DDPG(), "BipedalWalker-v3", HyperParameter(training_episodes=1000, maximum_episode_length=4000, train_start=20, batch_size=100, critic_η=0.0001, actor_η=0.0001))
+# # hp = agent("BipedalWalker-v3", HyperParameter(expl_noise=0.2f0, training_episodes=1000, maximum_episode_length=4000, train_start=20, batch_size=128, critic_η=0.0001, actor_η=0.0001))
 
-greet() = print("Hello World!")
+function renderEnv(environment, policy, seed=42)
+
+    gym = pyimport("gym")
+    
+    if environment == "LunarLander-v2"
+        global env = gym.make(environment, continuous = true, render_mode="human")
+    else
+        global env = gym.make(environment, render_mode="human")
+    end
+
+    s, info = env.reset(seed=seed)
+    @show s
+    R = []
+    notSolved = true
+
+        while notSolved
+            
+            a = action(policy, s, false, EnvParameter(), HyperParameter()) #action(t::Clamped, m::Bool, s::Vector{Float32}, p::Parameter)
+            # a = NODERL.action(Randomized(), false, s, p) #action(t::Clamped, m::Bool, s::Vector{Float32}, p::Parameter)
+
+            s´, r, terminated, truncated, _ = env.step(a)
+
+            terminated | truncated ? t = true : t = false
+
+            append!(R, r)
+
+            sleep(0.05)
+            s = s´
+            notSolved = !t
+        end
+
+    env.close()
+
+end #renderEnv
 
 end # module TDDD
