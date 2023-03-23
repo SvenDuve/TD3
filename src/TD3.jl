@@ -41,7 +41,7 @@ end
     noise_clip::Float32 =                   0.5f0
     # Training Metrics
     training_episodes::Int =                300
-    maximum_episode_length::Int =           1000
+    maximum_episode_length::Int =           3000
     train_start:: Int =                     10
     batch_size::Int =                       64
     policy_delay::Int =                     2  # Add policy update delay
