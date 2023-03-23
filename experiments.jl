@@ -41,4 +41,27 @@ using DelimitedFiles
 
 
 # save matrix to a CSV file
-writedlm("pendulum_TD3.csv", series, ',')
+# writedlm("pendulum_TD3.csv", series, ',')
+
+
+
+# save matrix to a CSV file
+writedlm("lunarlander_DDPG.csv", hp.episode_reward, ',')
+
+# load matrix from the CSV file
+# B = readdlm("pendulum_DDPG.csv", ',')
+
+using BSON
+
+
+using BSON: @save
+
+for (episode, model) in zip(collect(100:100:1000), hp.trained_agents)
+    @save "LL_" * string(episode) * ".bson" model
+end
+
+
+using BSON: @load
+using Flux
+
+@load "LL_1000.bson" model
