@@ -15,7 +15,14 @@ using MLUtils
 
 export agent, 
         HyperParameter,
-        renderEnv
+        renderEnv,
+        setCritic,
+        setActor,
+        ReplayBuffer,
+        remember,
+        sample,
+        soft_update!,
+        train_step!
 
 
 
